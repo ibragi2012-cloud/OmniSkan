@@ -21,8 +21,6 @@
 5. Запустите ИИ-центр управления на ноутбуке через терминал:
 ```powershell
 & C:\Users\ibrag\AppData\Local\Python\pythoncore-3.14-64\python.exe c:/Users/ibrag/Desktop/ai_omni_test.py
-```
-6. Кликните мышкой по открывшемуся окну OpenCV и нажмите английскую клавишу **`W`**, чтобы запустить режим автономного ИИ-поиска объектов.
 
 ---
 ## 💾 Архитектура ПО и Исходный код
@@ -707,26 +705,19 @@ import time
 import socket
 import threading
 import requests
-from ultralytics import YOLO, settings
 
 # === ГЛОБАЛЬНЫЕ ТАКТИЧЕСКИЕ ПЕРЕМЕННЫЕ ===
-mission_active = False  
-current_servo_angle = 90  
-current_cmd = "STOP"      
-ai_detected_object = "NOTHING SPECIAL"
+current_servo_angle = 90  # Стартовый угол камеры (прямо)
+current_cmd = "STOP"      # Стартовое состояние моторов
 
+# Телеметрия из Arduino Uno (строго под 11 параметров прошивки)
 robot_data = {
-    'servo_deg': 90
+    'ir_cm': 60, 'servo_deg': 90
 }
 data_lock = threading.Lock()
 tcp_socket = None
 
-print("[SYSTEM]: Блокировка синхронизации для автономной работы OmniScan...")
-settings.update({'sync': False, 'uuid': 'offline'}) 
-print("[SYSTEM]: Загрузка ИИ-ядра YOLOv8...")
-model = YOLO('yolov8n.pt', task='detect')
-
-# --- 2. ПОТОК ПРИЕМА ТЕЛЕМЕТРИИ С ФИЛЬТРОМ СДВИГОВ ---
+# --- 1. НАДЁЖНЫЙ ПОТОК ПРИЕМА ТЕЛЕМЕТРИИ С ФИЛЬТРОМ СДВИГОВ ---
 def tcp_telemetry_receiver():
     global tcp_socket, robot_data
     print("[SYSTEM]: Подключение к командному TCP-мосту: 192.168.4.1:8888...")
@@ -735,18 +726,20 @@ def tcp_telemetry_receiver():
             if tcp_socket is None:
                 tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 tcp_socket.settimeout(1.5)
+                # Постоянный жесткий адрес платы робота
                 tcp_socket.connect(("192.168.4.1", 8888))
                 tcp_socket.setblocking(False)
-                print("[+] Беспроводной ИИ-канал связи OmniScan синхронизирован!")
+                print("[+] Беспроводной TCP-канал связи OmniScan успешно соединен!")
             
             try:
                 buffer = tcp_socket.recv(2048).decode('utf-8', errors='ignore')
                 if buffer and "TEL" in buffer:
+                    # Режем лаги Wi-Fi по последней актуальной строке TEL
                     raw_telemetry = buffer.split("TEL")[-1].strip()
                     parts = raw_telemetry.split()
                     if len(parts) >= 8:
                         with data_lock:
-                            # Теперь считываем только последний параметр - реальный угол сервы
+                            robot_data['ir_cm'] = int(parts[-2])   
                             robot_data['servo_deg'] = int(parts[-1])
             except BlockingIOError: pass
         except Exception:
@@ -760,55 +753,48 @@ def send_robot_command(cmd):
         try: tcp_socket.sendall(f"{cmd}\n".encode('utf-8'))
         except Exception: pass
 
-# --- 3. ПОТОК СБРОСА WATCHDOG АРДУИНО ---
+# --- 2. ВЫСОКОСКОРОСТНОЙ ПОТОК ОБХОДА WATCHDOG (КАЖДЫЕ 80 МС) ---
 def robot_control_watchdog_loop():
-    global current_cmd, current_servo_angle, mission_active
-    servo_direction = 1
-    
-    print("[+] Ручной Wi-Fi драйвер управления запущен.")
+    global current_cmd, current_servo_angle
+    print("[+] Высокоскоростной Wi-Fi генератор команд запущен.")
     while True:
-        # Автоматическое сканирование камерой пространства, если активна миссия и нет цели
-        if mission_active and ai_detected_object == "NOTHING SPECIAL":
-            current_servo_angle += 15 * servo_direction
-            if current_servo_angle >= 165: current_servo_angle = 165; servo_direction = -1
-            elif current_servo_angle <= 15: current_servo_angle = 15; servo_direction = 1
-            current_cmd = "VEL 120 3000" # Плавный поисковый разворот на месте
-            
+        # Непрерывно дублируем ручные значения, чтобы сбрасывать Watchdog на Arduino (500 мс)
         send_robot_command(f"SERVO {current_servo_angle}")
         send_robot_command(current_cmd)
         time.sleep(0.08)
 
-# --- 4. ОСНОВНОЙ ВЫЧИСЛИТЕЛЬНЫЙ ЦИКЛ ОБРАБОТКИ ВИДЕО И КЛАВИАТУРЫ ---
+# --- 3. ОСНОВНОЙ ВЫЧИСЛИТЕЛЬНЫЙ ЦИКЛ ОБРАБОТКИ ВИДЕО И КЛАВИАТУРЫ ---
 def main():
-    global current_cmd, current_servo_angle, ai_detected_object, mission_active
+    global current_cmd, current_servo_angle
     
     threading.Thread(target=tcp_telemetry_receiver, daemon=True).start()
     threading.Thread(target=robot_control_watchdog_loop, daemon=True).start()
 
-    print("[SYSTEM]: Подключение к HTTP-серверу ESP32-CAM...")
-    cv2.namedWindow("OMNISCAN: Active Vision HUD")
+    print("[SYSTEM]: Подключение к HTTP-видеосерверу ESP32-CAM...")
+    cv2.namedWindow("OMNISCAN: Manual Control HUD")
     
+    # Прямой побайтовый перехват беспроводного JPEG-потока
     stream = None
     try:
         stream = requests.get("http://192.168.4", stream=True, timeout=5)
-        print("[+] Видеопоток успешно инициализирован!")
+        print("[+] Беспроводной видеопоток успешно инициализирован!")
     except Exception as e:
         print(f"[-] Ошибка подключения к камере: {e}")
 
     bytes_buffer = bytes()
 
     print("\n" + "="*50)
-    print("[РЕЖИМЫ РАБОТЫ     ]: W - Старт авто-разведки (камера крутится сама)")
-    print("[УПРАВЛЕНИЕ MOTORS]: Стрелочки Windows - Вперед/Назад/Развороты")
-    print("[УПРАВЛЕНИЕ КАМЕРОЙ]: I - Поворот глаза влево | O - Поворот глаза вправо")
-    print("[ТОРМОЗ / СБРОС    ]: Клавиша 'Пробел' (Space) - Полная остановка")
+    print("[УПРАВЛЕНИЕ MOTORS]: W - Вперед | S - Назад | A - Поворот влево | D - Поворот вправо")
+    print("[УПРАВЛЕНИЕ SERVO ]: I - Поворот глаза влево | O - Поворот глаза вправо")
+    print("[ЭКСТРЕННЫЙ ТОРМОЗ]: Клавиша 'Пробел' (Space) - Полная остановка")
+    print("[ВЫХОД ИЗ КЛИЕНТА ]: Клавиша 'Q' - Закрыть интерфейс")
     print("="*50 + "\n")
 
     if stream and stream.status_code == 200:
         for chunk in stream.iter_content(chunk_size=1024):
             bytes_buffer += chunk
-            a = bytes_buffer.find(b'\xff\xd8') 
-            b = bytes_buffer.find(b'\xff\xd9') 
+            a = bytes_buffer.find(b'\xff\xd8') # Начало JPEG кадра
+            b = bytes_buffer.find(b'\xff\xd9') # Конец JPEG кадра
             
             if a != -1 and b != -1:
                 jpg = bytes_buffer[a:b+2]
@@ -819,64 +805,51 @@ def main():
                     frame = cv2.resize(frame, (1024, 576))
 
                     with data_lock:
+                        air_cm = robot_data['ir_cm']
                         aservo = robot_data['servo_deg']
 
-                    # Нативная ИИ-классификация через ядро YOLOv8
-                    yolo_results = model(frame, verbose=False)
-                    found_target = "NOTHING SPECIAL"
+                    # --- КИБЕРПАНК-ИНТЕРФЕЙС ИК-РАДАРА ВНИЗУ ЭКРАНА ---
+                    radar_center_x, radar_center_y = 512, 540
+                    cv2.ellipse(frame, (radar_center_x, radar_center_y), (120, 120), 0, 180, 360, (60, 60, 60), 2, cv2.LINE_AA)
+                    
+                    angle_rad = math.radians(aservo)
+                    beam_len = int(max(20, min(120, air_cm * 2.2)))
+                    bx = int(radar_center_x - beam_len * math.cos(angle_rad))
+                    by = int(radar_center_y - beam_len * math.sin(angle_rad))
+                    
+                    beam_color = (0, 0, 255) if air_cm < 16 else (0, 255, 255)
+                    cv2.line(frame, (radar_center_x, radar_center_y), (bx, by), beam_color, 2, cv2.LINE_AA)
+                    cv2.circle(frame, (bx, by), 4, beam_color, -1)
 
-                    if len(yolo_results) > 0 and len(yolo_results.boxes) > 0:
-                        top_box = yolo_results.boxes
-                        conf = float(top_box.conf)
-                        cls_id = int(top_box.cls)
-                        label = model.names[cls_id]
+                    # Стильная HUD-панель ручного пилотирования OmniScan
+                    cv2.rectangle(frame, (10, 10), (520, 95), (0, 0, 0), -1)
+                    cv2.putText(frame, "OMNISCAN MANUAL HUB : ONLINE", (20, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1, cv2.LINE_AA)
+                    cv2.putText(frame, f"CURRENT TELEMETRY CMD     : {current_cmd}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1, cv2.LINE_AA)
+                    cv2.putText(frame, f"MANUAL TARGET SERVO VALUE : {current_servo_angle} DEG", (20, 72), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 0, 255), 1, cv2.LINE_AA)
 
-                        if conf > 0.45 and label != 'floor':
-                            found_target = f"{label.upper()} ({int(conf*100)}%)"
-                            frame = yolo_results.plot()
-                            
-                            # Перехват управления: если в авторежиме замечена цель — фиксируем камеру и едем на неё
-                            if mission_active:
-                                x1, y1, x2, y2 = map(int, top_box.xyxy.tolist())
-                                obj_center_x = (x1 + x2) / 2
-                                # Удерживаем цель по центру кадра (динамическое наведение)
-                                if obj_center_x < 450: current_servo_angle = min(165, current_servo_angle + 5)
-                                elif obj_center_x > 570: current_servo_angle = max(15, current_servo_angle - 5)
-                                
-                                # Моторы подруливают вслед за углом поворота головы-камеры
-                                err_servo = aservo - 90
-                                current_cmd = f"VEL 160 {err_servo * -150}"
+                    cv2.rectangle(frame, (830, 10), (1014, 55), (0, 0, 0), -1)
+                    cv2.putText(frame, f"LIDAR: {air_cm} CM", (845, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.45, beam_color, 1, cv2.LINE_AA)
+                    cv2.putText(frame, f"SERVO: {aservo} DEG", (845, 47), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1, cv2.LINE_AA)
 
-                    ai_detected_object = found_target
+                    cv2.imshow("OMNISCAN: Manual Control HUD", frame)
 
-                    # HUD-панель активного ИИ-зрения
-                    cv2.rectangle(frame, (10, 10), (560, 95), (0, 0, 0), -1)
-                    cv2.putText(frame, "OMNISCAN: ACTIVE VISION CENTER", (20, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1, cv2.LINE_AA)
-                    cv2.putText(frame, f"ROBOT ACTIVE MISSION STATUS: {'RUNNING (SCANNING)' if mission_active else 'MANUAL OVERRIDE'}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1, cv2.LINE_AA)
-                    cv2.putText(frame, f"DYNAMIC TARGET LOCK STATUS : {ai_detected_object}", (20, 72), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 100) if ai_detected_object != "NOTHING SPECIAL" else (140, 140, 140), 1, cv2.LINE_AA)
-
-                    cv2.rectangle(frame, (830, 10), (1014, 38), (0, 0, 0), -1)
-                    cv2.putText(frame, f"EYE SERVO: {aservo} DEG", (845, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1, cv2.LINE_AA)
-
-                    cv2.imshow("OMNISCAN: Active Vision HUD", frame)
-
-                # --- ОБРАБОТКА СИСТЕМНЫХ КЛАВИШ ---
+                # --- ОБРАБОТКА НАДЁЖНЫХ КЛАВИШ OpenCV (Робот едет, пока клавиша активна) ---
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q'): break
-                elif key == ord('w'): mission_active = True # Запуск авто-сканирования головы
-                elif key == ord('i'): mission_active = False; current_servo_angle = min(165, current_servo_angle + 15) 
-                elif key == ord('o'): mission_active = False; current_servo_angle = max(15, current_servo_angle - 15)  
-                elif key == 82:    mission_active = False; current_cmd = "VEL 180 0"   # Стрелочка ВВЕРХ
-                elif key == 84:    mission_active = False; current_cmd = "VEL -180 0"  # Стрелочка ВНИЗ
-                elif key == 81:    mission_active = False; current_cmd = "VEL 0 4500"   # Стрелочка ВЛЕВО
-                elif key == 83:    mission_active = False; current_cmd = "VEL 0 -4500"  # Стрелочка ВПРАВО
-                elif key == ord(' '): mission_active = False; current_cmd = "STOP"        
+                elif key == ord('w'): current_cmd = "VEL 180 0"   # Езда вперед
+                elif key == ord('s'): current_cmd = "VEL -180 0"  # Езда назад
+                elif key == ord('a'): current_cmd = "VEL 0 4500"   # Поворот влево
+                elif key == ord('d'): current_cmd = "VEL 0 -4500"  # Поворот вправо
+                elif key == ord('i'): current_servo_angle = min(165, current_servo_angle + 15) # Поворот головы влево
+                elif key == ord('o'): current_servo_angle = max(15, current_servo_angle - 15)  # Поворот головы вправо
+                elif key == ord(' '): current_cmd = "STOP"        # Экстренный тормоз моторов
 
     if tcp_socket: tcp_socket.close()
     cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     main()
+
 
 ```
 
