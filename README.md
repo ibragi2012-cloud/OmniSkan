@@ -36,15 +36,12 @@
 6. Кликните мышкой по открывшемуся окну OpenCV и нажмите английскую клавишу **`W`**, чтобы запустить режим автономного ИИ-поиска объектов.
 
 ---
-
 ## 💾 Архитектура ПО и Исходный код
-
 ### 1. Прошивка для ESP32-CAM (`esp32_cam_stream_bridge.ino`)
 ```cpp
 #include "esp_camera.h"
 #include <WiFi.h>
 #include "esp_http_server.h"
-
 // Конфигурация пинов для камеры AI Thinker ESP32-CAM
 #define PWDN_GPIO_NUM     32
 #define RESET_GPIO_NUM    -1
@@ -62,7 +59,6 @@
 #define VSYNC_GPIO_NUM    25
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
-
 const char* AP_NAME = "Vnfoo567";
 const char* AP_PASSWORD = "Vnfoo567";
 
@@ -80,7 +76,6 @@ void startCameraServer();
 void setup() {
   Serial.begin(38400); 
   Serial.setDebugOutput(false);
-
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -107,19 +102,14 @@ void setup() {
   config.frame_size = FRAMESIZE_SVGA; 
   config.jpeg_quality = 12;          
   config.fb_count = 2;               
-
   // Игнорируем аппаратный сбой камеры для запуска Wi-Fi
   esp_camera_init(&config);
-
-
   WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_NAME, AP_PASSWORD);
   WiFi.setSleep(false);
-
   startCameraServer();
   tcpServer.begin();
 }
-
 void loop() {
   if (!tcpClient || !tcpClient.connected()) {
     tcpClient = tcpServer.available();
@@ -128,7 +118,6 @@ void loop() {
       tcpLength = 0;
     }
   }
-
   while (tcpClient && tcpClient.available()) {
     const char symbol = tcpClient.read();
     if (symbol == '\n' || symbol == '\r') {
@@ -906,19 +895,3 @@ if __name__ == '__main__':
 Скрипт побайтово вырезает JPEG-картинки из сетевого HTTP-канала по маркерам `\xff\xd8` и `\xff\xd9` в обход стандартных лагов видеодекодеров. Кадр анализируется весами YOLOv8. Если перед роботом пусто, он плавно крутится на ковре в режиме авто-разведки (`W`), качая камеру влево-вправо. Как только YOLOv8 обнаруживает объект, робот переходит в режим захвата (`Target Lock-On`). Скрипт оценивает положение центра масс объекта на матрице `1024x576`. Если объект уходит из центра кадров, ноутбук точечно корректирует угол сервопривода, удерживая объект строго во взгляде. Затем вычисляется физическая угловая ошибка между направлением «головы» и продольной осью робота: `err_servo = aservo - 90`. Полученное значение ошибки преобразуется в угловую скорость разворота колес `VEL`. Робот начинает автоматически доворачивать всем своим колесным корпусом вслед за взглядом своей поворотной камеры, центрируя курс на найденный предмет.
 
 ---
-
-## 🛠️ Управление комментариями при отладке (Справка Python)
-
-При локальном тестировании кода или его публикации на GitHub вы можете гибко отключать блоки логики с помощью синтаксических конструкций:
-
-*   **Символ решетки (`#`):** Используется для однострочных комментариев. Если поставить его перед строкой, Python полностью ее пропустит:
-    ```python
-    # send_robot_command(current_cmd)  # Моторы временно заблокированы
-    ```
-*   **Тройные кавычки (`'''` или `"""`):** Используются для многострочного комментирования. Позволяют временно изолировать целые куски кода, например, для отключения приема телеметрии при тестировании чистого видео:
-    ```python
-    '''
-    with data_lock:
-        robot_data['servo_deg'] = int(parts[-1])
-    '''
-    ```
