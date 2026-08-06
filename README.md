@@ -1,4 +1,4 @@
-# OmniScan: 👁️
+# OmniScan: Active Vision 🛰️👁️
 
 Проект автономного мобильного робота-исследователя со сканирующим ИИ-зрением на базе связки **ESP32-CAM** и **Arduino Uno**. Камера закреплена непосредственно на сервоприводе, выступая в роли активного эгоцентрического сенсора. Робот сканирует пространство нейросетью **YOLOv8**, захватывает цели и автоматически удерживает курс на объект с помощью ПИД-регуляторов.
 
@@ -31,182 +31,7 @@
 4. Положите файл весов нейросети `yolov8n.pt` на Рабочий стол рядом со скриптом.
 5. Запустите ИИ-центр управления на ноутбуке через терминал:
 ```powershell
-  #include "esp_camera.h"
-  #include <WiFi.h>
-  #include "esp_http_server.h"
-  
-  // Конфигурация пинов для камеры AI Thinker ESP32-CAM
-  #define PWDN_GPIO_NUM     32
-  #define RESET_GPIO_NUM    -1
-  #define XCLK_GPIO_NUM      0
-  #define SIOD_GPIO_NUM     26
-  #define SIOC_GPIO_NUM     27
-  #define Y9_GPIO_NUM       35
-  #define Y8_GPIO_NUM       34
-  #define Y7_GPIO_NUM       39
-  #define Y6_GPIO_NUM       36
-  #define Y5_GPIO_NUM       21
-  #define Y4_GPIO_NUM       19
-  #define Y3_GPIO_NUM       18
-  #define Y2_GPIO_NUM        5
-  #define VSYNC_GPIO_NUM    25
-  #define HREF_GPIO_NUM     23
-  #define PCLK_GPIO_NUM     22
-  
-  const char* AP_NAME = "ImyaSeti";
-  const char* AP_PASSWORD = "ParolSeti";
-  
-  const uint16_t TCP_PORT = 8888;
-  WiFiServer tcpServer(TCP_PORT);
-  WiFiClient tcpClient;
-  
-  char tcpLine[96];
-  uint8_t tcpLength = 0;
-  char uartLine[150]; 
-  uint8_t uartLength = 0;
-  
-  void startCameraServer();
-  
-  void setup() {
-    Serial.begin(38400); 
-    Serial.setDebugOutput(false);
-  
-    camera_config_t config;
-    config.ledc_channel = LEDC_CHANNEL_0;
-    config.ledc_timer = LEDC_TIMER_0;
-    config.pin_d0 = Y2_GPIO_NUM;
-    config.pin_d1 = Y3_GPIO_NUM;
-    config.pin_d2 = Y4_GPIO_NUM;
-    config.pin_d3 = Y5_GPIO_NUM;
-    config.pin_d4 = Y6_GPIO_NUM;
-    config.pin_d5 = Y7_GPIO_NUM;
-    config.pin_d6 = Y8_GPIO_NUM;
-    config.pin_d7 = Y9_GPIO_NUM;
-    config.pin_xclk = XCLK_GPIO_NUM;
-    config.pin_pclk = PCLK_GPIO_NUM;
-    config.pin_vsync = VSYNC_GPIO_NUM;
-    config.pin_href = HREF_GPIO_NUM;
-    config.pin_sscb_sda = SIOD_GPIO_NUM;
-    config.pin_sscb_scl = SIOC_GPIO_NUM;
-    config.pin_pwdn = PWDN_GPIO_NUM;
-    config.pin_reset = RESET_GPIO_NUM;
-    config.xclk_freq_hz = 20000000;
-    
-    // Использован обновленный нативный формат JPEG
-    config.pixel_format = PIXFORMAT_JPEG;
-    config.frame_size = FRAMESIZE_SVGA; 
-    config.jpeg_quality = 12;          
-    config.fb_count = 2;               
-  
-    // Игнорируем аппаратный сбой камеры для запуска Wi-Fi
-    esp_camera_init(&config);
-  
-  
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP(AP_NAME, AP_PASSWORD);
-    WiFi.setSleep(false);
-  
-    startCameraServer();
-    tcpServer.begin();
-  }
-  
-  void loop() {
-    if (!tcpClient || !tcpClient.connected()) {
-      tcpClient = tcpServer.available();
-      if (tcpClient) {
-        tcpClient.setNoDelay(true); 
-        tcpLength = 0;
-      }
-    }
-  
-    while (tcpClient && tcpClient.available()) {
-      const char symbol = tcpClient.read();
-      if (symbol == '\n' || symbol == '\r') {
-        if (tcpLength > 0) {
-          tcpLine[tcpLength] = '\0';
-          Serial.println(tcpLine); 
-          tcpLength = 0;
-        }
-      } else if (tcpLength < sizeof(tcpLine) - 1) {
-        tcpLine[tcpLength++] = symbol;
-      } else {
-        tcpLength = 0;
-      }
-    }
-  
-    while (Serial.available()) {
-      const char symbol = Serial.read();
-      if (symbol == '\n' || symbol == '\r') {
-        if (uartLength > 0) {
-          uartLine[uartLength] = '\0';
-          if (tcpClient && tcpClient.connected()) {
-            tcpClient.println(uartLine); 
-          }
-          uartLength = 0;
-        }
-      } else if (uartLength < sizeof(uartLine) - 1) {
-        uartLine[uartLength++] = symbol;
-      } else {
-        uartLength = 0;
-      }
-    }
-  }
-  
-  esp_err_t stream_handler(httpd_req_t *req) {
-    camera_fb_t * fb = NULL;
-    esp_err_t res = ESP_OK;
-    size_t _jpg_buf_len = 0;
-    uint8_t * _jpg_buf = NULL;
-    char part_buf[64];
-  
-    res = httpd_resp_set_type(req, "multipart/x-mixed-replace;boundary=123456789000000000000987654321");
-    if(res != ESP_OK) return res;
-  
-    while(true) {
-      fb = esp_camera_fb_get();
-      if (!fb) {
-        res = ESP_FAIL;
-      } else {
-        _jpg_buf_len = fb->len;
-        _jpg_buf = fb->buf;
-      }
-      
-      if(res == ESP_OK) {
-        size_t hlen = snprintf(part_buf, 64, "\r\n--123456789000000000000987654321\r\nContent-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n", _jpg_buf_len);
-        res = httpd_resp_send_chunk(req, part_buf, hlen);
-      }
-      if(res == ESP_OK) {
-        res = httpd_resp_send_chunk(req, (const char *)_jpg_buf, _jpg_buf_len);
-      }
-      
-      if(fb) {
-        esp_camera_fb_return(fb);
-        fb = NULL;
-        _jpg_buf = NULL;
-      }
-      if(res != ESP_OK) break;
-    }
-    return res;
-  }
-  
-  void startCameraServer() {
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.server_port = 80; 
-    config.ctrl_port = 32769;
-  
-    httpd_uri_t stream_uri = {
-      .uri       = "/",
-      .method    = HTTP_GET,
-      .handler   = stream_handler,
-      .user_ctx  = NULL
-    };
-  
-    httpd_handle_t cam_httpd = NULL;
-    if (httpd_start(&cam_httpd, &config) == ESP_OK) {
-      httpd_register_uri_handler(cam_httpd, &stream_uri);
-    }
-  }
-
+& C:\Users\ibrag\AppData\Local\Python\pythoncore-3.14-64\python.exe c:/Users/ibrag/Desktop/ai_omni_test.py
 ```
 6. Кликните мышкой по открывшемуся окну OpenCV и нажмите английскую клавишу **`W`**, чтобы запустить режим автономного ИИ-поиска объектов.
 
@@ -216,9 +41,182 @@
 
 ### 1. Прошивка для ESP32-CAM (`esp32_cam_stream_bridge.ino`)
 ```cpp
-// [МЕСТО ДЛЯ ВСТАВКИ СKЕТЧА ESP32-CAM]
-// Вставьте сюда C++ код для вашей платы ESP32-CAM, 
-// который поднимает Wi-Fi точку доступа NEYMARK_01 и транслирует MJPEG-видеопоток.
+#include "esp_camera.h"
+#include <WiFi.h>
+#include "esp_http_server.h"
+
+// Конфигурация пинов для камеры AI Thinker ESP32-CAM
+#define PWDN_GPIO_NUM     32
+#define RESET_GPIO_NUM    -1
+#define XCLK_GPIO_NUM      0
+#define SIOD_GPIO_NUM     26
+#define SIOC_GPIO_NUM     27
+#define Y9_GPIO_NUM       35
+#define Y8_GPIO_NUM       34
+#define Y7_GPIO_NUM       39
+#define Y6_GPIO_NUM       36
+#define Y5_GPIO_NUM       21
+#define Y4_GPIO_NUM       19
+#define Y3_GPIO_NUM       18
+#define Y2_GPIO_NUM        5
+#define VSYNC_GPIO_NUM    25
+#define HREF_GPIO_NUM     23
+#define PCLK_GPIO_NUM     22
+
+const char* AP_NAME = "Vnfoo567";
+const char* AP_PASSWORD = "Vnfoo567";
+
+const uint16_t TCP_PORT = 8888;
+WiFiServer tcpServer(TCP_PORT);
+WiFiClient tcpClient;
+
+char tcpLine[96];
+uint8_t tcpLength = 0;
+char uartLine[150]; 
+uint8_t uartLength = 0;
+
+void startCameraServer();
+
+void setup() {
+  Serial.begin(38400); 
+  Serial.setDebugOutput(false);
+
+  camera_config_t config;
+  config.ledc_channel = LEDC_CHANNEL_0;
+  config.ledc_timer = LEDC_TIMER_0;
+  config.pin_d0 = Y2_GPIO_NUM;
+  config.pin_d1 = Y3_GPIO_NUM;
+  config.pin_d2 = Y4_GPIO_NUM;
+  config.pin_d3 = Y5_GPIO_NUM;
+  config.pin_d4 = Y6_GPIO_NUM;
+  config.pin_d5 = Y7_GPIO_NUM;
+  config.pin_d6 = Y8_GPIO_NUM;
+  config.pin_d7 = Y9_GPIO_NUM;
+  config.pin_xclk = XCLK_GPIO_NUM;
+  config.pin_pclk = PCLK_GPIO_NUM;
+  config.pin_vsync = VSYNC_GPIO_NUM;
+  config.pin_href = HREF_GPIO_NUM;
+  config.pin_sscb_sda = SIOD_GPIO_NUM;
+  config.pin_sscb_scl = SIOC_GPIO_NUM;
+  config.pin_pwdn = PWDN_GPIO_NUM;
+  config.pin_reset = RESET_GPIO_NUM;
+  config.xclk_freq_hz = 20000000;
+  
+  // Использован обновленный нативный формат JPEG
+  config.pixel_format = PIXFORMAT_JPEG;
+  config.frame_size = FRAMESIZE_SVGA; 
+  config.jpeg_quality = 12;          
+  config.fb_count = 2;               
+
+  // Игнорируем аппаратный сбой камеры для запуска Wi-Fi
+  esp_camera_init(&config);
+
+
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(AP_NAME, AP_PASSWORD);
+  WiFi.setSleep(false);
+
+  startCameraServer();
+  tcpServer.begin();
+}
+
+void loop() {
+  if (!tcpClient || !tcpClient.connected()) {
+    tcpClient = tcpServer.available();
+    if (tcpClient) {
+      tcpClient.setNoDelay(true); 
+      tcpLength = 0;
+    }
+  }
+
+  while (tcpClient && tcpClient.available()) {
+    const char symbol = tcpClient.read();
+    if (symbol == '\n' || symbol == '\r') {
+      if (tcpLength > 0) {
+        tcpLine[tcpLength] = '\0';
+        Serial.println(tcpLine); 
+        tcpLength = 0;
+      }
+    } else if (tcpLength < sizeof(tcpLine) - 1) {
+      tcpLine[tcpLength++] = symbol;
+    } else {
+      tcpLength = 0;
+    }
+  }
+
+  while (Serial.available()) {
+    const char symbol = Serial.read();
+    if (symbol == '\n' || symbol == '\r') {
+      if (uartLength > 0) {
+        uartLine[uartLength] = '\0';
+        if (tcpClient && tcpClient.connected()) {
+          tcpClient.println(uartLine); 
+        }
+        uartLength = 0;
+      }
+    } else if (uartLength < sizeof(uartLine) - 1) {
+      uartLine[uartLength++] = symbol;
+    } else {
+      uartLength = 0;
+    }
+  }
+}
+
+esp_err_t stream_handler(httpd_req_t *req) {
+  camera_fb_t * fb = NULL;
+  esp_err_t res = ESP_OK;
+  size_t _jpg_buf_len = 0;
+  uint8_t * _jpg_buf = NULL;
+  char part_buf[64];
+
+  res = httpd_resp_set_type(req, "multipart/x-mixed-replace;boundary=123456789000000000000987654321");
+  if(res != ESP_OK) return res;
+
+  while(true) {
+    fb = esp_camera_fb_get();
+    if (!fb) {
+      res = ESP_FAIL;
+    } else {
+      _jpg_buf_len = fb->len;
+      _jpg_buf = fb->buf;
+    }
+    
+    if(res == ESP_OK) {
+      size_t hlen = snprintf(part_buf, 64, "\r\n--123456789000000000000987654321\r\nContent-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n", _jpg_buf_len);
+      res = httpd_resp_send_chunk(req, part_buf, hlen);
+    }
+    if(res == ESP_OK) {
+      res = httpd_resp_send_chunk(req, (const char *)_jpg_buf, _jpg_buf_len);
+    }
+    
+    if(fb) {
+      esp_camera_fb_return(fb);
+      fb = NULL;
+      _jpg_buf = NULL;
+    }
+    if(res != ESP_OK) break;
+  }
+  return res;
+}
+
+void startCameraServer() {
+  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.server_port = 80; 
+  config.ctrl_port = 32769;
+
+  httpd_uri_t stream_uri = {
+    .uri       = "/",
+    .method    = HTTP_GET,
+    .handler   = stream_handler,
+    .user_ctx  = NULL
+  };
+
+  httpd_handle_t cam_httpd = NULL;
+  if (httpd_start(&cam_httpd, &config) == ESP_OK) {
+    httpd_register_uri_handler(cam_httpd, &stream_uri);
+  }
+}
+
 ```
 
 **⚙️ Принцип работы:**
