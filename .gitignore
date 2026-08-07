@@ -1,0 +1,10 @@
+# Игнорируем кэш Python
+__pycache__/
+*.pyc
+
+# Игнорируем локальные скриншоты, чтобы не захламлять гитхаб
+OmniScan_Screenshots/
+
+# Игнорируем временные файлы компиляции Arduino IDE
+/firmware/arduino/build/
+/firmware/esp32/build/
