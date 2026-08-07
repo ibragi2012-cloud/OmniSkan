@@ -482,7 +482,7 @@ Arduino.ino
 ### Пример
 
 ```python
-# tcp_socket.send(command)
+# print("Hello World") 
 ```
 
 ### Практические сценарии
@@ -504,12 +504,9 @@ Arduino.ino
 
 ```python
 '''
-results = model(frame)
-
-for box in results:
-    draw_target(box)
-
-display_predictions(frame)
+Hello = "Hello"
+World = "World"
+print(Hello+World) 
 '''
 ```
 
