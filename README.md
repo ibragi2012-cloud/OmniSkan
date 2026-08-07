@@ -15,7 +15,8 @@
  Внешний вид комплекса
 
 ```text
-[вставь сюда фото робота]
+<img width="1446" height="1920" alt="изображение" src="https://github.com/user-attachments/assets/ec52ffcd-0563-44cf-8158-3d5591b43177" />
+
 ```
 
 ---
