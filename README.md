@@ -11,13 +11,10 @@
 ## 📸 
  Визуализация проекта
 
-### 🤖 
- Внешний вид комплекса
+### 🤖 Внешний вид комплекса
 
-```text
-<img width="1446" height="1920" alt="изображение" src="https://github.com/user-attachments/assets/ec52ffcd-0563-44cf-8158-3d5591b43177" />
+![Мобильный комплекс OmniScan](robot.jpg)
 
-```
 
 ---
 
