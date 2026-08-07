@@ -172,7 +172,7 @@
 
 <details>
 
-<summary><strong>💻 ИИ-клиент управления на Python (Codes&Filmware/OmniSkan.py)</strong></summary>
+<summary><strong>💻 ИИ-клиент управления на Python (OmniSkan/Codes&Filmware/OmniSkan.py)</strong></summary>
 
 ```python
 """
@@ -258,7 +258,7 @@ OmniSkan.py
 <details>
 
 <summary><strong>📡 
- Прошивка TCP/UART моста для ESP32 (Codes&Filmware/Esp32.ino)</strong></summary>
+ Прошивка TCP/UART моста для ESP32 (OmniSkan/Codes&Filmware/Esp32.ino)</strong></summary>
 
 ```cpp
 /*
@@ -334,7 +334,7 @@ Esp32.ino
 <details>
 
 <summary><strong>⚙️ 
- ПИД-прошивка нижнего уровня (Codes&Filmware/Arduino.ino)</strong></summary>
+ ПИД-прошивка нижнего уровня (OmniSkan/Codes&Filmware/Arduino.ino)</strong></summary>
 
 ```cpp
 /*
