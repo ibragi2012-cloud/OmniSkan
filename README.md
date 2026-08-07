@@ -177,7 +177,7 @@ OmniScan-ActiveVision/
 ├── software/
 │   └── OmniSkan.py
 │
-├── firmware/
+├── filmware/
 │   ├── esp32/
 │   │   └── Esp32.ino
 │   │
@@ -283,7 +283,7 @@ OmniSkan.py
 <details>
 
 <summary><strong>📡 
- Прошивка TCP/UART моста для ESP32 (firmware/esp32/Esp32.ino)</strong></summary>
+ Прошивка TCP/UART моста для ESP32 (Codes&Filmware/Esp32.ino)</strong></summary>
 
 ```cpp
 /*
