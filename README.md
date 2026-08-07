@@ -1509,7 +1509,7 @@ python software/OmniSkan.py
         Python 3.14 + OmniSkan.py
                    │
         ┌──────────┴──────────┐
-18:39
+
 │                     │
         ▼                     ▼
      YOLOv8s                 HUD
