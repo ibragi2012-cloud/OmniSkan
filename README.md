@@ -162,32 +162,7 @@
 
 ```
 
----
 
-# 📂 
- Структура репозитория
-
-```text
-OmniScan-ActiveVision/
-│
-├── .gitignore
-├── README.md
-├── requirements.txt
-│
-├── software/
-│   └── OmniSkan.py
-│
-├── filmware/
-│   ├── esp32/
-│   │   └── Esp32.ino
-│   │
-│   └── arduino/
-│       └── Arduino.ino
-│
-└── docs/
-```
-
----
 
 # 📚 Исходные коды проекта
 
@@ -197,7 +172,7 @@ OmniScan-ActiveVision/
 
 <details>
 
-<summary><strong>💻 ИИ-клиент управления на Python (software/OmniSkan.py)</strong></summary>
+<summary><strong>💻 ИИ-клиент управления на Python (Codes&Filmware/OmniSkan.py)</strong></summary>
 
 ```python
 """
@@ -359,7 +334,7 @@ Esp32.ino
 <details>
 
 <summary><strong>⚙️ 
- ПИД-прошивка нижнего уровня (firmware/arduino/Arduino.ino)</strong></summary>
+ ПИД-прошивка нижнего уровня (Codes&Filmware/Arduino.ino)</strong></summary>
 
 ```cpp
 /*
@@ -628,11 +603,11 @@ Arduino Uno
 
 | Подсистема | Назначение |
 |------------|------------|
-| 💻 **software/OmniSkan.py** | Компьютерное зрение, интерфейс оператора, управление |
+| 💻 **Codes&Filmware/OmniSkan.py** | Компьютерное зрение, интерфейс оператора, управление |
 | 📡 
- **firmware/esp32/Esp32.ino** | Прозрачный TCP ↔ UART мост |
+ **Codes&Filmware/Esp32.ino** | Прозрачный TCP ↔ UART мост |
 | ⚙️ 
- **firmware/arduino/Arduino.ino** | ПИД-регулятор, энкодеры, управление моторами и сервоприводом |
+ **Codes&Filmware/Arduino.ino** | ПИД-регулятор, энкодеры, управление моторами и сервоприводом |
 18:37
 | 🧠 
  **YOLOv8s** | Детекция объектов в реальном времени |
